@@ -11,3 +11,4 @@ Rato1.png
 Rato2.png
 Rato3.png
 Rato4.png
+cheese.png

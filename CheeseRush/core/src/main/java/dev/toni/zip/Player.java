@@ -13,9 +13,11 @@ public class Player {
     public Rectangle bounds = new Rectangle();
     public Animation<TextureRegion> anim;
     private float stateTime = 0f;
-    private boolean isJumping = false;
     private float gravity = -25f;
     private float jumpForce = 10f;
+
+    private int jumpCount = 0;        // 🔹 controla pulos
+    private final int maxJumps = 2;   // 🔹 permite 2 pulos (duplo pulo)
 
     public Player() {
         reset();
@@ -37,10 +39,10 @@ public class Player {
         if (pos.y < Constants.GROUND_Y) {
             pos.y = Constants.GROUND_Y;
             vel.y = 0;
-            isJumping = false;
+            jumpCount = 0; // 🔹 reseta contagem de pulos ao tocar o chão
         }
 
-        // desaceleração suave (se não estiver pedalando)
+        // desaceleração suave
         if (vel.x > 0f) {
             vel.x -= Constants.PLAYER_DECAY * dt;
             if (vel.x < 0f) vel.x = 0f;
@@ -54,18 +56,16 @@ public class Player {
     }
 
     public void accelerate() {
-        // impulso ao pedalar (ou pressionar espaço)
-        vel.x += 1.2f;
+        vel.x += 1.0f; // 🔹 leve redução na aceleração
         if (vel.x > Constants.PLAYER_MAX_SPEED)
             vel.x = Constants.PLAYER_MAX_SPEED;
     }
 
     public void jump() {
-        if (!isJumping) {
+        if (jumpCount < maxJumps) { // 🔹 permite pular novamente no ar
             vel.y = jumpForce;
-            // 🔹 adiciona impulso horizontal ao pular
-            if (vel.x < 2.5f) vel.x += 1.0f;
-            isJumping = true;
+            if (vel.x < 2.5f) vel.x += 0.8f;
+            jumpCount++;
         }
     }
 
@@ -73,6 +73,6 @@ public class Player {
         pos.set(6f, Constants.GROUND_Y);
         vel.set(0f, 0f);
         bounds.set(pos.x, pos.y, 1.1f, 1.1f);
-        isJumping = false;
+        jumpCount = 0;
     }
 }

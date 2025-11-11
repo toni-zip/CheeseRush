@@ -18,23 +18,20 @@ public class WorldRenderer {
         this.ctrl = controller;
         this.cam = cam;
 
-        // câmera fixa para HUD
         hudCam = new OrthographicCamera();
         hudCam.setToOrtho(false, Constants.WORLD_WIDTH, Constants.WORLD_HEIGHT);
 
         font = new BitmapFont();
-        font.getData().setScale(0.05f); // 🔹 fonte pequena e legível
+        font.getData().setScale(0.05f);
     }
 
     public void render() {
-        // Atualiza câmera principal (segue o rato)
         cam.position.set(ctrl.player.pos.x + 5f, cam.viewportHeight / 2f, 0f);
         cam.update();
 
         batch.setProjectionMatrix(cam.combined);
         batch.begin();
 
-        // Fundo em paralaxe
         renderParallax(ctrl.currentBg, ctrl.player.pos.x * 0.3f);
         renderParallax(ctrl.currentBg, ctrl.player.pos.x * 0.6f);
         renderParallax(ctrl.currentBg, ctrl.player.pos.x * 0.9f);
@@ -46,27 +43,22 @@ public class WorldRenderer {
             }
         }
 
-        // Player (rato)
-        batch.draw(
-                ctrl.player.getFrame(),
-                ctrl.player.pos.x,
-                ctrl.player.pos.y,
-                1.2f,
-                1.2f
-        );
+        // 🔹 Lixeiras
+        if (ctrl.trashes != null && ctrl.trashTexture != null) {
+            for (Rectangle trash : ctrl.trashes) {
+                batch.draw(ctrl.trashTexture, trash.x, trash.y, trash.width, trash.height);
+            }
+        }
+
+        // Player
+        batch.draw(ctrl.player.getFrame(), ctrl.player.pos.x, ctrl.player.pos.y, 1.2f, 1.2f);
 
         // Gato
-        batch.draw(
-                ctrl.cat.getFrame(),
-                ctrl.cat.pos.x,
-                ctrl.cat.pos.y,
-                1.3f,
-                1.3f
-        );
+        batch.draw(ctrl.cat.getFrame(), ctrl.cat.pos.x, ctrl.cat.pos.y, 1.3f, 1.3f);
 
         batch.end();
 
-        // --- HUD fixa (texto não se move com a câmera) ---
+        // HUD
         hudCam.update();
         batch.setProjectionMatrix(hudCam.combined);
         batch.begin();
@@ -74,11 +66,7 @@ public class WorldRenderer {
         float padding = 0.3f;
         float yTop = hudCam.viewportHeight - 0.3f;
 
-        // Queijos (canto superior direito)
-        font.draw(batch,
-                "" + ctrl.cheeseCount,
-                hudCam.viewportWidth - 4.5f - padding,
-                yTop);
+        font.draw(batch, "🧀 " + ctrl.cheeseCount, hudCam.viewportWidth - 5f - padding, yTop);
 
         batch.end();
     }
@@ -98,8 +86,6 @@ public class WorldRenderer {
     }
 
     public void dispose() {
-        if (font != null) {
-            font.dispose();
-        }
+        font.dispose();
     }
 }

@@ -16,6 +16,7 @@ public class WorldController {
 
     public Texture bgDay, bgAfternoon, bgNight;
     public Texture currentBg;
+    public Texture nextBg;
     public Texture cheeseTexture;
     public Texture trashTexture;
 
@@ -31,21 +32,29 @@ public class WorldController {
     private boolean gameStarted = false;
     private Random random = new Random();
 
+    // fade control
+    public boolean fading = false;
+    public float fadeTime = 0f;
+    private float fadeDuration = 2f; // agora privado
+    public float getFadeDuration() { return fadeDuration; } // ✅ getter público
+
     // Cheeses config
     private float minCheeseDistance = 8f;
     private float maxCheeseDistance = 15f;
     private float cheeseSpawnAhead = 25f;
 
-    // Trash config (mais aleatório)
+    // Trash config
     private float minTrashDistance = 18f;
     private float maxTrashDistance = 40f;
     private float trashSpawnAhead = 20f;
-    private float trashSpawnChance = 1f; // 🔹 35% de chance de spawnar nova lixeira
+    private float trashSpawnChance = 1f;
 
     // Controle de pulo do gato
     private boolean catJumping = false;
     private float catJumpVelocity = 0f;
     private float catGravity = -50f;
+
+    public boolean isGameStarted() { return gameStarted; } // ✅ usado no menu
 
     public WorldController(AssetManager assets) {
         player = new Player();
@@ -65,7 +74,6 @@ public class WorldController {
         cheeses = new Array<>();
         trashes = new Array<>();
 
-        // Queijos iniciais
         float startX = 10f;
         for (int i = 0; i < 4; i++) {
             float spacing = minCheeseDistance + random.nextFloat() * (maxCheeseDistance - minCheeseDistance);
@@ -73,10 +81,8 @@ public class WorldController {
             cheeses.add(c);
         }
 
-        // Uma lixeira inicial
         trashes.add(new Rectangle(20f, Constants.GROUND_Y, 1.2f, 1.2f));
 
-        // Animação do gato
         Array<TextureRegion> catFrames = new Array<>();
         for (int i = 1; i <= 6; i++)
             catFrames.add(new TextureRegion(new Texture("Gato" + i + ".png")));
@@ -90,11 +96,19 @@ public class WorldController {
 
     public void update(float dt) {
         if (!gameOver) {
+            if (!gameStarted) {
+                // Espera o jogador apertar espaço para começar
+                if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+                    gameStarted = true;
+                    cat.activate();
+                }
+                return;
+            }
+
             handleInput(dt);
             player.update(dt);
             updateCat(dt);
             updateBounds();
-
             updateCheeses(dt);
             updateTrashes(dt);
 
@@ -109,18 +123,19 @@ public class WorldController {
                 }
             }
 
+            updateBackgroundTransition(dt);
+
         } else {
-            if (Gdx.input.justTouched()) reset();
+            // Reiniciar o jogo quando clicar ou apertar espaço
+            if (Gdx.input.justTouched() || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+                reset();
+            }
         }
     }
 
     private void handleInput(float dt) {
         if (Gdx.input.isKeyPressed(Input.Keys.SPACE)) {
             player.accelerate();
-            if (!gameStarted) {
-                gameStarted = true;
-                cat.activate();
-            }
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.W)) {
@@ -134,10 +149,8 @@ public class WorldController {
     }
 
     private void updateCat(float dt) {
-        // Só move se o jogo começou
         if (!cat.isActive()) return;
 
-        // Detecta lixeira próxima
         Rectangle nearestTrash = null;
         for (Rectangle t : trashes) {
             if (t.x > cat.pos.x && t.x - cat.pos.x < 2.0f) {
@@ -146,13 +159,11 @@ public class WorldController {
             }
         }
 
-        // Se há lixeira próxima e gato no chão -> pular
         if (nearestTrash != null && cat.pos.y <= Constants.GROUND_Y + 0.01f && !catJumping) {
             catJumping = true;
-            catJumpVelocity = 18f; // força do pulo
+            catJumpVelocity = 18f;
         }
 
-        // Aplica gravidade no gato se estiver pulando
         if (catJumping) {
             cat.pos.y += catJumpVelocity * dt;
             catJumpVelocity += catGravity * dt;
@@ -164,6 +175,33 @@ public class WorldController {
         }
 
         cat.update(dt, player.pos.x);
+    }
+
+    private void updateBackgroundTransition(float dt) {
+        if (fading) {
+            fadeTime += dt;
+            if (fadeTime >= fadeDuration) {
+                fading = false;
+                currentBg = nextBg;
+                nextBg = null;
+            }
+        }
+
+        if (!fading) {
+            if (cheeseCount >= 10 && currentBg != bgNight) {
+                nextBg = bgNight;
+                startFade(0.7f);
+            } else if (cheeseCount >= 5 && currentBg != bgAfternoon) {
+                nextBg = bgAfternoon;
+                startFade(0.4f);
+            }
+        }
+    }
+
+    private void startFade(float extraSpeed) {
+        fading = true;
+        fadeTime = 0f;
+        cat.increaseSpeedOverTime(extraSpeed);
     }
 
     private void updateCheeses(float dt) {
@@ -199,7 +237,6 @@ public class WorldController {
         for (Rectangle t : trashes)
             if (t.x > farthestTrashX) farthestTrashX = t.x;
 
-        // 🔹 Agora, chance aleatória de spawnar uma lixeira nova
         float spawnThreshold = player.pos.x + trashSpawnAhead;
         if (farthestTrashX < spawnThreshold && random.nextFloat() < trashSpawnChance) {
             spawnNewTrash(farthestTrashX);
@@ -254,6 +291,19 @@ public class WorldController {
         cheeseCount = 0;
         difficulty = 0;
         currentBg = bgDay;
+        fading = false;
+        nextBg = null;
+        fadeTime = 0f;
         gameOver = false;
+    }
+
+    // ✅ método adicional pedido
+    public void resetGame() {
+        cheeseCount = 0;
+        player.reset();
+        cat.reset();
+        currentBg = bgDay;
+        nextBg = null;
+        fading = false;
     }
 }

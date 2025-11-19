@@ -1,49 +1,36 @@
 package dev.toni.zip;
 
-import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 
-
-public class Pigeon {
+public class Dog {
 
     public Vector2 pos = new Vector2();
     public Rectangle bounds;
-    public Texture texture;
     public float stateTime = 0f;
 
-    private float baseSpeed = 6.0f; // velocidade base do pombo
-    private float maxSpeed = 8.0f;
+    private float baseSpeed = 5.0f;
+    private float maxSpeed = 7.0f;
 
     private boolean active = false;
 
-    public Pigeon(float x, float y) {
-        this.pos.set(x, y);
-        this.texture = new Texture("pombo1.png"); 
-        this.bounds = new Rectangle(x, y, 1.4f, 1.4f);
+    public Dog(float x, float y) {
+        this.pos.set(x, Constants.GROUND_Y);
+        this.bounds = new Rectangle(x, Constants.GROUND_Y, 1.8f, 1.2f);
     }
 
-    
     public void update(float dt) {
         if (!active) return;
-
-       
         pos.x -= baseSpeed * dt;
-
         bounds.setPosition(pos.x, pos.y);
         stateTime += dt;
     }
 
-    public void render(SpriteBatch batch) {
-        batch.draw(texture, pos.x, pos.y);
-    }
-
     public void reset(float x, float y) {
-        pos.set(x, y);
-        bounds.setPosition(x, y);
+        pos.set(x, Constants.GROUND_Y);
+        bounds.setPosition(x, Constants.GROUND_Y);
         stateTime = 0f;
-        baseSpeed = 4.0f;
+        baseSpeed = 5.0f;
         active = false;
     }
 
@@ -57,5 +44,4 @@ public class Pigeon {
         if (baseSpeed < 0f) baseSpeed = 0f;
     }
 
-    public float getBaseSpeed() { return baseSpeed; }
 }

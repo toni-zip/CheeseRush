@@ -23,12 +23,19 @@ public class WorldController {
 
     public TextureRegion pomboTexture;
     public Animation<TextureRegion> pomboAnim;
+    public Animation<TextureRegion> dogAnim;
 
     public Array<Rectangle> cheeses;
     public Array<Rectangle> trashes;
-    public Array<Rectangle> pombos;
+    public Array<Pigeon> pombos;
+    public Array<Dog> dogs;
 
     public boolean gameOver = false;
+    // Vidas do jogador: colisões permitidas antes do game over
+    public final int MAX_LIVES = 5;
+    public int lives = MAX_LIVES;
+    // Texturas de HP (hp1..hp6)
+    public Texture[] hpTextures = new Texture[6];
     public float score = 0f;
     public int difficulty = 0;
     public int cheeseCount = 0;
@@ -42,8 +49,16 @@ public class WorldController {
     private float fadeDuration = 2f;
     public float getFadeDuration() { return fadeDuration; }
 
+    // pausa controlada pelo renderer/menu
+    public boolean paused = false;
     private boolean wentAfternoon = false;
     private boolean wentNight = false;
+
+    // Atraso para início do gato
+    private boolean catStartPending = false;
+    private float catStartTimer = 0f;
+    private final float CAT_START_DELAY = 3f; // segundos
+    public float bgScroll = 0f;
 
     private float minCheeseDistance = 8f;
     private float maxCheeseDistance = 15f;
@@ -60,6 +75,12 @@ public class WorldController {
     private float maxPomboDistance = 25f;
     private float pomboSpawnAhead = 18f;
     private float pomboSpawnChance = 1.2f;
+
+    // CACHORROS 
+    private float minDogDistance = 20f;
+    private float maxDogDistance = 40f;
+    private float dogSpawnAhead = 20f;
+    private float dogSpawnChance = 0.25f; 
 
     private boolean catJumping = false;
     private float catJumpVelocity = 0f;
@@ -84,11 +105,22 @@ public class WorldController {
         cheeseTexture = new Texture("cheese.png");
         trashTexture = new Texture("lixeira.png");
 
+    
+        for (int i = 1; i <= 6; i++) {
+            hpTextures[i - 1] = new Texture("hp" + i + ".png");
+        }
+
         // POMBO
         Array<TextureRegion> pomboFrames = new Array<>();
         for (int i = 1; i <= 6; i++)
             pomboFrames.add(new TextureRegion(new Texture("pombo" + i + ".png")));
         pomboAnim = new Animation<>(0.1f, pomboFrames, Animation.PlayMode.LOOP);
+
+        // Cachorro 
+        Array<TextureRegion> dogFrames = new Array<>();
+        for (int i = 1; i <= 6; i++)
+            dogFrames.add(new TextureRegion(new Texture("dog" + i + ".png")));
+        dogAnim = new Animation<>(0.12f, dogFrames, Animation.PlayMode.LOOP);
 
         music = Gdx.audio.newMusic(Gdx.files.internal("music.mp3"));
         music.setLooping(true);
@@ -97,7 +129,8 @@ public class WorldController {
 
         cheeses = new Array<>();
         trashes = new Array<>();
-        pombos = new Array<>();
+    pombos = new Array<>();
+    dogs = new Array<>();
 
         float startX = 10f;
         for (int i = 0; i < 4; i++) {
@@ -119,33 +152,71 @@ public class WorldController {
         updateBounds();
     }
 
+
+    public void startGame() {
+        if (!gameStarted) {
+            gameStarted = true;
+            catStartPending = true;
+            catStartTimer = 0f;
+        }
+    }
+
+    public void pauseGame() { paused = true; }
+    public void resumeGame() { paused = false; }
+
     public void update(float dt) {
+        if (paused) return;
         if (!gameOver) {
             if (!gameStarted) {
                 if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
                     gameStarted = true;
-                    cat.activate();
+                    // inicia contagem regressiva do gato em vez de ativá-lo imediatamente
+                    catStartPending = true;
+                    catStartTimer = 0f;
                 }
                 return;
             }
 
             handleInput(dt);
             player.update(dt);
+            if (catStartPending) {
+                catStartTimer += dt;
+                if (catStartTimer >= CAT_START_DELAY) {
+                    catStartPending = false;
+                    cat.activate();
+                }
+            }
             updateCat(dt);
             updateBounds();
             updateCheeses(dt);
             updateTrashes(dt);
             updatePombos(dt);
+            updateDogs(dt);
+
+            // atualiza deslocamento contínuo do fundo com base na velocidade do jogador
+            bgScroll += player.vel.x * dt * 0.5f;
 
             score += player.vel.x * dt * 10f;
 
-            if (player.bounds.overlaps(cat.bounds)) gameOver = true;
+            if (player.bounds.overlaps(cat.bounds)) {
+                handlePlayerCollision();
+            }
 
-            for (Rectangle t : trashes)
-                if (player.bounds.overlaps(t)) gameOver = true;
+            for (int i = trashes.size - 1; i >= 0; i--) {
+                Rectangle t = trashes.get(i);
+                if (player.bounds.overlaps(t)) {
+                    trashes.removeIndex(i);
+                    handlePlayerCollision();
+                }
+            }
 
-            for (Rectangle p : pombos)
-                if (player.bounds.overlaps(p)) gameOver = true;
+            for (int i = pombos.size - 1; i >= 0; i--) {
+                Pigeon p = pombos.get(i);
+                if (player.bounds.overlaps(p.bounds)) {
+                    pombos.removeIndex(i);
+                    handlePlayerCollision();
+                }
+            }
 
             updateBackgroundTransition(dt);
 
@@ -167,14 +238,14 @@ public class WorldController {
 
         if (!fading) {
 
-            if (!wentAfternoon && cheeseCount >= 5 && currentBg != bgAfternoon) {
+            if (!wentAfternoon && cheeseCount >= 20 && currentBg != bgAfternoon) {
                 nextBg = bgAfternoon;
                 startFade(0.2f);
                 wentAfternoon = true;
                 return;
             }
 
-            if (!wentNight && cheeseCount >= 10 && currentBg != bgNight) {
+            if (!wentNight && cheeseCount >= 40 && currentBg != bgNight) {
                 nextBg = bgNight;
                 startFade(0.3f);
                 wentNight = true;
@@ -182,14 +253,30 @@ public class WorldController {
         }
     }
 
+    // Chamado quando o jogador colide com um obstáculo ou com o gato.
+    // Decrementa vidas e finaliza o jogo quando anuladas. Se ainda houver vidas,
+    // aplica efeito de dano (sem parar o movimento) e mantém o jogador em andamento.
+    private void handlePlayerCollision() {
+        lives--;
+        if (lives <= 0) {
+            gameOver = true;
+            return;
+        }
+
+        // Mantém o jogador em movimento
+        player.takeDamage();
+        if (player.vel.x < 2.5f) player.vel.x = 2.5f; 
+        player.pos.x += 0.5f;
+        updateBounds();
+    }
+
     private void startFade(float extraSpeed) {
         fading = true;
         fadeTime = 0f;
-        cat.increaseSpeedOverTime(extraSpeed);
     }
 
     private void handleInput(float dt) {
-        if (Gdx.input.isKeyPressed(Input.Keys.SPACE))
+        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE))
             player.accelerate();
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.W)) {
@@ -205,6 +292,7 @@ public class WorldController {
         if (!cat.isActive()) return;
 
         Rectangle nearestTrash = null;
+        Dog nearestDog = null;
         for (Rectangle t : trashes) {
             if (t.x > cat.pos.x && t.x - cat.pos.x < 2.0f) {
                 nearestTrash = t;
@@ -212,7 +300,14 @@ public class WorldController {
             }
         }
 
-        if (nearestTrash != null && cat.pos.y <= Constants.GROUND_Y + 0.01f && !catJumping) {
+        for (Dog d : dogs) {
+            if (d.pos.x > cat.pos.x && d.pos.x - cat.pos.x < 2.0f) {
+                nearestDog = d;
+                break;
+            }
+        }
+
+        if ((nearestTrash != null || nearestDog != null) && cat.pos.y <= Constants.GROUND_Y + 0.01f && !catJumping) {
             catJumping = true;
             catJumpVelocity = 18f;
         }
@@ -258,8 +353,7 @@ public class WorldController {
 
     private void updateTrashes(float dt) {
 
-        if (currentBg == bgNight) return;
-
+       
         for (Rectangle t : trashes)
             t.x -= player.vel.x * dt * 0.8f;
 
@@ -268,7 +362,7 @@ public class WorldController {
             if (t.x > farthest) farthest = t.x;
 
         float spawnThreshold = player.pos.x + trashSpawnAhead;
-        if (farthest < spawnThreshold && random.nextFloat() < trashSpawnChance)
+        if (farthest < spawnThreshold && currentBg != bgNight && random.nextFloat() < trashSpawnChance)
             spawnNewTrash(farthest);
 
         float removeThreshold = player.pos.x - 20f;
@@ -279,23 +373,58 @@ public class WorldController {
 
     private void updatePombos(float dt) {
 
-        if (currentBg == bgDay) return;
-
-        for (Rectangle p : pombos)
-            p.x -= player.vel.x * dt * 0.85f;
+        
+        for (Pigeon p : pombos)
+            p.update(dt);
 
         float farthest = -999f;
-        for (Rectangle p : pombos)
-            if (p.x > farthest) farthest = p.x;
+        for (Pigeon p : pombos)
+            if (p.pos.x > farthest) farthest = p.pos.x;
 
         float spawnThreshold = player.pos.x + pomboSpawnAhead;
-        if (farthest < spawnThreshold && random.nextFloat() < pomboSpawnChance)
+        if (farthest < spawnThreshold && currentBg != bgDay && random.nextFloat() < pomboSpawnChance)
             spawnNewPombo(farthest);
 
         float removeThreshold = player.pos.x - 20f;
         for (int i = pombos.size - 1; i >= 0; i--)
-            if (pombos.get(i).x < removeThreshold)
+            if (pombos.get(i).pos.x < removeThreshold)
                 pombos.removeIndex(i);
+    }
+
+    private void updateDogs(float dt) {
+    
+        for (Dog d : dogs)
+            d.update(dt);
+
+        float farthest = -999f;
+        for (Dog d : dogs)
+            if (d.pos.x > farthest) farthest = d.pos.x;
+
+        float spawnThreshold = player.pos.x + dogSpawnAhead;
+        if (farthest < spawnThreshold && currentBg == bgNight && random.nextFloat() < dogSpawnChance)
+            spawnNewDog(farthest);
+
+        float removeThreshold = player.pos.x - 20f;
+        for (int i = dogs.size - 1; i >= 0; i--)
+            if (dogs.get(i).pos.x < removeThreshold)
+                dogs.removeIndex(i);
+
+        
+        for (int i = dogs.size - 1; i >= 0; i--) {
+            Dog d = dogs.get(i);
+            if (player.bounds.overlaps(d.bounds)) {
+                dogs.removeIndex(i);
+                handlePlayerCollision();
+            }
+        }
+    }
+
+    private void spawnNewDog(float lastX) {
+        float spacing = minDogDistance + random.nextFloat() * (maxDogDistance - minDogDistance);
+        float newX = Math.max(lastX + spacing, player.pos.x + 18f);
+        Dog d = new Dog(newX, Constants.GROUND_Y);
+        d.activate();
+        dogs.add(d);
     }
 
     private void spawnNewCheese(float lastX) {
@@ -317,8 +446,9 @@ public class WorldController {
         float newX = Math.max(lastX + spacing, player.pos.x + 18f);
         float y = Constants.GROUND_Y + 0.9f + random.nextFloat() * 4f;
 
-        Rectangle p = new Rectangle(newX, y, 1.4f, 1.4f);
-        pombos.add(p);
+    Pigeon p = new Pigeon(newX, y);
+        p.activate();
+    pombos.add(p);
     }
 
     private void updateBounds() {
@@ -358,8 +488,11 @@ public class WorldController {
         fadeTime = 0f;
         wentAfternoon = false;
         wentNight = false;
+        catStartPending = false;
+        catStartTimer = 0f;
+        paused = false;
         gameOver = false;
-
+        lives = MAX_LIVES;
         music.stop();
         music.setVolume(0.05f);
         music.play();

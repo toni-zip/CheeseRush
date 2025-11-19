@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Rectangle;
 
@@ -17,7 +18,7 @@ public class WorldRenderer {
     private final BitmapFont font;
     private final BitmapFont titleFont;
 
-    private enum GameState { MENU, PLAYING, GAME_OVER }
+    private enum GameState { MENU, PLAYING, PAUSED, GAME_OVER }
     private GameState state = GameState.MENU;
 
     public WorldRenderer(SpriteBatch batch, WorldController controller, OrthographicCamera cam) {
@@ -28,11 +29,15 @@ public class WorldRenderer {
         hudCam = new OrthographicCamera();
         hudCam.setToOrtho(false, Constants.WORLD_WIDTH, Constants.WORLD_HEIGHT);
 
-        font = new BitmapFont();
-        font.getData().setScale(0.05f);
+    font = new BitmapFont();
+    font.getData().setScale(0.04f);
+    font.getRegion().getTexture().setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+    font.setUseIntegerPositions(false);
 
         titleFont = new BitmapFont();
-        titleFont.getData().setScale(0.12f);
+    titleFont.getData().setScale(0.06f);
+    titleFont.getRegion().getTexture().setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+    titleFont.setUseIntegerPositions(false);
     }
 
     public void render() {
@@ -42,6 +47,9 @@ public class WorldRenderer {
                 break;
             case PLAYING:
                 renderGame();
+                break;
+            case PAUSED:
+                renderPaused();
                 break;
             case GAME_OVER:
                 renderGameOver();
@@ -64,20 +72,68 @@ public class WorldRenderer {
 
         titleFont.setColor(Color.GOLD);
         String title = "CheeseRush";
-        float titleX = hudCam.viewportWidth / 2f - (title.length() * 0.16f);
-        titleFont.draw(batch, title, titleX, hudCam.viewportHeight / 2f + 2f);
+        GlyphLayout layout = new GlyphLayout(titleFont, title);
+        float titleX = hudCam.viewportWidth / 2f - layout.width / 2f;
+        titleFont.draw(batch, layout, titleX, hudCam.viewportHeight / 2f + 2f);
 
         font.setColor(Color.WHITE);
         String hint = "[Pressione SPACE para iniciar]";
-        float hintX = hudCam.viewportWidth / 2f - (hint.length() * 0.06f);
-        font.draw(batch, hint, hintX, hudCam.viewportHeight / 2f - 1f);
+        GlyphLayout hintLayout = new GlyphLayout(font, hint);
+        float hintX = hudCam.viewportWidth / 2f - hintLayout.width / 2f;
+        font.draw(batch, hintLayout, hintX, hudCam.viewportHeight / 2f - 1f);
 
         batch.end();
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
             state = GameState.PLAYING;
             if (!ctrl.isGameStarted())
-                ctrl.cat.activate();
+                ctrl.startGame();
+        }
+    }
+
+    private void renderPaused() {
+        cam.update();
+        batch.setProjectionMatrix(cam.combined);
+        batch.begin();
+
+        renderBackgroundWithFade();
+
+        batch.end();
+
+        hudCam.update();
+        batch.setProjectionMatrix(hudCam.combined);
+        batch.begin();
+
+        titleFont.setColor(Color.LIGHT_GRAY);
+        String title = "PAUSADO";
+        GlyphLayout layout = new GlyphLayout(titleFont, title);
+        float titleX = hudCam.viewportWidth / 2f - layout.width / 2f;
+        titleFont.draw(batch, layout, titleX, hudCam.viewportHeight / 2f + 2f);
+
+        font.setColor(Color.WHITE);
+        String hint1 = "[Pressione ESC ou SPACE para continuar]";
+        String hint2 = "[Pressione R para reiniciar | M para menu principal]";
+        GlyphLayout h1 = new GlyphLayout(font, hint1);
+        GlyphLayout h2 = new GlyphLayout(font, hint2);
+        float hx = hudCam.viewportWidth / 2f - h1.width / 2f;
+        font.draw(batch, h1, hx, hudCam.viewportHeight / 2f - 1f);
+        font.draw(batch, h2, hudCam.viewportWidth / 2f - h2.width / 2f, hudCam.viewportHeight / 2f - 2f);
+
+        batch.end();
+
+        // tratamento de entrada do menu de pausa
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE) || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+            state = GameState.PLAYING;
+            ctrl.resumeGame();
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
+            ctrl.reset();
+            ctrl.startGame();
+            state = GameState.PLAYING;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.M)) {
+            ctrl.reset();
+            state = GameState.MENU;
         }
     }
 
@@ -99,10 +155,14 @@ public class WorldRenderer {
             for (Rectangle trash : ctrl.trashes)
                 batch.draw(ctrl.trashTexture, trash.x, trash.y, trash.width, trash.height);
 
-        // POMBOS
-        for (Rectangle p : ctrl.pombos)
-            batch.draw(ctrl.pomboAnim.getKeyFrame(Gdx.graphics.getDeltaTime(), true),
-                    p.x, p.y, p.width, p.height);
+    // POMBOS
+    for (Pigeon p : ctrl.pombos)
+        batch.draw(ctrl.pomboAnim.getKeyFrame(p.stateTime, true),
+            p.pos.x, p.pos.y, p.bounds.width, p.bounds.height);
+
+    // CACHORROS 
+    for (Dog d : ctrl.dogs)
+        batch.draw(ctrl.dogAnim.getKeyFrame(d.stateTime, true), d.pos.x, d.pos.y, d.bounds.width, d.bounds.height);
 
         batch.draw(ctrl.player.getFrame(), ctrl.player.pos.x, ctrl.player.pos.y, 1.2f, 1.2f);
         batch.draw(ctrl.cat.getFrame(), ctrl.cat.pos.x, ctrl.cat.pos.y, 1.3f, 1.3f);
@@ -114,9 +174,45 @@ public class WorldRenderer {
         batch.begin();
 
         font.setColor(Color.WHITE);
-        font.draw(batch, "🧀 " + ctrl.cheeseCount, hudCam.viewportWidth - 5f, hudCam.viewportHeight - 0.6f);
+
+        // Desenha imagem de HP no canto superior-esquerdo se disponível.
+        if (ctrl.hpTextures != null) {
+            int index = ctrl.MAX_LIVES - ctrl.lives; 
+            if (index < 0) index = 0;
+            if (index > 5) index = 5;
+            try {
+                Texture hpTex = ctrl.hpTextures[index];
+                float iconW = 4f; 
+                float iconH = 1.1f;
+                float iconX = 0.5f;
+                float iconY = hudCam.viewportHeight - 1.2f;
+                batch.draw(hpTex, iconX, iconY, iconW, iconH);
+            } catch (Exception e) {
+                font.draw(batch, "Lives: " + ctrl.lives, 0.5f, hudCam.viewportHeight - 0.6f);
+            }
+        }
+
+        // Contador de queijo
+        if (ctrl.cheeseTexture != null) {
+            float iconSize = 0.8f; 
+            float iconX = hudCam.viewportWidth - 6f;
+            float iconY = hudCam.viewportHeight - 1.2f;
+            batch.draw(ctrl.cheeseTexture, iconX, iconY, iconSize, iconSize);
+            float numberX = iconX + iconSize + 0.2f;
+            float numberY = hudCam.viewportHeight - 0.6f;
+            font.draw(batch, String.valueOf(ctrl.cheeseCount), numberX, numberY);
+        } else {
+            font.draw(batch, "Cheese: " + ctrl.cheeseCount, hudCam.viewportWidth - 5f, hudCam.viewportHeight - 0.6f);
+        }
 
         batch.end();
+
+        // abrir menu de pausa
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            state = GameState.PAUSED;
+            ctrl.pauseGame();
+            return;
+        }
 
         if (ctrl.gameOver)
             state = GameState.GAME_OVER;
@@ -137,13 +233,20 @@ public class WorldRenderer {
 
         titleFont.setColor(Color.RED);
         String msg = "Você foi capturado!";
-        float msgX = hudCam.viewportWidth / 2f - (msg.length() * 0.15f);
-        titleFont.draw(batch, msg, msgX, hudCam.viewportHeight / 2f + 1.5f);
+        GlyphLayout msgLayout = new GlyphLayout(titleFont, msg);
+        float msgX = hudCam.viewportWidth / 2f - msgLayout.width / 2f;
+        float msgY = hudCam.viewportHeight / 2f + msgLayout.height / 2f;
+        float margin = 0.2f;
+        if (msgY + margin > hudCam.viewportHeight) msgY = hudCam.viewportHeight - margin;
+        titleFont.draw(batch, msgLayout, msgX, msgY);
 
         font.setColor(Color.WHITE);
         String retry = "[Pressione SPACE para tentar novamente]";
-        float retryX = hudCam.viewportWidth / 2f - (retry.length() * 0.06f);
-        font.draw(batch, retry, retryX, hudCam.viewportHeight / 2f - 1f);
+        GlyphLayout retryLayout = new GlyphLayout(font, retry);
+        float retryX = hudCam.viewportWidth / 2f - retryLayout.width / 2f;
+        float retryY = msgY - msgLayout.height - 0.7f;
+        if (retryY < retryLayout.height + margin) retryY = retryLayout.height + margin;
+        font.draw(batch, retryLayout, retryX, retryY);
 
         batch.end();
 
@@ -158,8 +261,7 @@ public class WorldRenderer {
         float w = cam.viewportWidth;
         float h = Constants.WORLD_HEIGHT;
 
-        float bgSpeed = 0.5f;
-        float bgOffset = (ctrl.player.pos.x * bgSpeed) % w;
+        float bgOffset = ctrl.bgScroll % w;
 
         for (int i = -1; i <= 1; i++)
             batch.draw(ctrl.currentBg, cam.position.x - bgOffset + i * w - w / 2f, 0, w, h);

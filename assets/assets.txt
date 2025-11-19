@@ -12,8 +12,18 @@ Rato2.png
 Rato3.png
 Rato4.png
 cheese.png
-fonts/VCR_OSD_MONO_1.001.png
-fonts/VCR_OSD_MONO_1.001.ttf
+dog1.png
+dog2.png
+dog3.png
+dog4.png
+dog5.png
+dog6.png
+hp1.png
+hp2.png
+hp3.png
+hp4.png
+hp5.png
+hp6.png
 lixeira.png
 music.mp3
 pombo1.png
@@ -22,3 +32,5 @@ pombo3.png
 pombo4.png
 pombo5.png
 pombo6.png
+ratoM1.png
+ratoM2.png

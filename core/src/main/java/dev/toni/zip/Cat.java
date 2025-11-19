@@ -11,8 +11,8 @@ public class Cat {
     public Animation<TextureRegion> anim;
     public float stateTime;
 
-    private float baseSpeed = 5.5f;   // 🔹 reduzido (antes 6.0f)
-    private float maxSpeed = 6.8f;    // 🔹 reduzido (antes 7.5f)
+    private float baseSpeed = 5.5f;   
+    private float maxSpeed = 6.8f;    
     private float closeFactor = 0.9f;
     private float farFactor = 1.1f;
 

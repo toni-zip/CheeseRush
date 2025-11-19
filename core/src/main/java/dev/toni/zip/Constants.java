@@ -11,9 +11,8 @@ public final class Constants {
     public static final float PLAYER_ACCEL = 12f;
     public static final float PLAYER_MAX_SPEED = 6.5f;
     public static final float PLAYER_DECAY = 6f;
-
     public static final float GROUND_Y = 0.2f;
 
-    // Velocidade base do gato (reduzida para equilibrar perseguição)
+    // Velocidade base do gato 
     public static final float CAT_SPEED = 3.5f;
 }
